@@ -20,12 +20,12 @@ const WORKER_INJECT = `
 
   function _filter(body) {
     const endsNL = body.endsWith('\\n');
-    const out = []; let inAd = false, dropDisc = false, skipUrl = false, blocked = false, removed = 0;
+    const out = []; let inAd = false, dropDisc = false, skipUrl = false, blocked = false, removed = 0, liveReturned = false;
     for (const line of body.split('\\n')) {
       const s = line.trim();
-      if (_isAdPodStart(s))                                         { if (!inAd) { inAd = true; skipUrl = false; blocked = true; } continue; }
+      if (_isAdPodStart(s))                                         { if (!inAd) { inAd = true; skipUrl = false; blocked = true; try { new BroadcastChannel('witchblock').postMessage({ type: 'adStart' }); } catch (_) {} } continue; }
       if (inAd) {
-        if (_isLiveReturn(s))                                       { inAd = false; dropDisc = true; skipUrl = false; continue; }
+        if (_isLiveReturn(s))                                       { inAd = false; dropDisc = true; skipUrl = false; liveReturned = true; continue; }
         if (s.startsWith('#EXT-X-TWITCH-PREFETCH:'))                { continue; }
         if (s === '#EXT-X-DISCONTINUITY')                           { continue; }
         if (s.startsWith('#EXTINF'))                                { skipUrl = true; continue; }
@@ -41,7 +41,7 @@ const WORKER_INJECT = `
     }
     const col = []; let pd = false;
     for (const line of out) { const d = line.trim() === '#EXT-X-DISCONTINUITY'; if (d && pd) continue; col.push(line); pd = d; }
-    return { text: col.join('\\n') + (endsNL ? '\\n' : ''), blocked, removed };
+    return { text: col.join('\\n') + (endsNL ? '\\n' : ''), blocked, removed, liveReturned };
   }
 
   const _orig = self.fetch;
@@ -59,8 +59,10 @@ const WORKER_INJECT = `
       if (!text.startsWith('#EXTM3U')) return new Response(text, { status: clone.status, headers: { 'content-type': ct } });
       const result = _filter(text);
       if (result.blocked) console.log('[WitchBlock] ad stripped — removed', result.removed, 'segments from', url.slice(0, 100));
+      if (result.liveReturned) { try { new BroadcastChannel('witchblock').postMessage({ type: 'adEnd' }); } catch (_) {} }
       return new Response(result.text, { status: clone.status, headers: { 'content-type': ct } });
     } catch (e) {
+      if (e && e.name === 'AbortError') throw e;
       console.warn('[WitchBlock] filter error', e);
       return clone;
     }
