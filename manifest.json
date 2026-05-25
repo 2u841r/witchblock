@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "WitchBlock",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Strips server-side stitched ads from Twitch HLS playlists. Works by injecting a fetch hook into the Amazon IVS WASM worker before it initializes.",
   "homepage_url": "https://github.com/2u841r/witchblock",
   "browser_specific_settings": {
